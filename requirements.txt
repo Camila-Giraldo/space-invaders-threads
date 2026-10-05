@@ -1,0 +1,14 @@
+# Dependencias de Space Invaders concurrente.
+#
+# pygame-ce (Community Edition) en vez de pygame: mantiene la API compatible
+# pero publica ruedas para las versiones de Python mas recientes, incluido
+# CPython 3.14, que `pygame` oficial todavia no cubre.
+#
+#   python -m venv .venv
+#   .venv/bin/pip install -r requirements.txt
+
+pygame-ce>=2.5
+pytest>=8.0
+
+# Solo para `benchmark.py --grafico`. No es necesario para jugar ni para testear.
+# matplotlib>=3.8

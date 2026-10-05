@@ -1,0 +1,19 @@
+# Entorno virtual
+.venv/
+venv/
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Salidas de la partida y del benchmark
+*.log
+acel*.png
+aceleracion.png
+
+# Editores
+.vscode/
+.idea/
+*.swp
+.DS_Store
