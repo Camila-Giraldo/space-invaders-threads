@@ -89,7 +89,7 @@ Fue el defecto **D7** de la versión de partida: el OVNI se dibujaba en
 `y=40..60` y la bala colisionaba contra `40 <= bala.y <= 60`, escritos a mano en
 sitios distintos. Los dos valores se separaron en algún momento y el OVNI se
 volvió imparable. Ahora los dos salen de `OVNI_Y`, `OVNI_H` y `OVNI_W`
-(`config.py:124-126`) y la colisión de `hilos.py:231-235`.
+(`config.py:123-125`) y la colisión de `hilos.py:231-235`.
 
 ### Ritmo
 
@@ -180,7 +180,7 @@ Lo cubre `test_bala_no_borra_otra_bala_igual` (`tests/test_concurrencia.py:321`)
 
 **`Escudo`** (`estado.py:100-140`). Un bunker modelado como rejilla de
 12 × 8 celdas booleanas, inicializada del arte ASCII `ESCUDO_FORMA`
-(`config.py:110-119`):
+(`config.py:109-118`):
 
 ```
     ####
@@ -1199,7 +1199,7 @@ Para cuando alguien pregunte "¿y esto qué lo arregla?":
 | D4 | ~30 líneas de dibujado dentro del lock | `render.py:159-181` (`Snapshot`) | §7 |
 | D5 | `bajar` nunca se reseteaba | `partida.py:296` (rama `else`) | §6 |
 | D6 | `time.time()` para medir ticks | `time.monotonic()` en `partida.py`, `hilos.py` | §3 |
-| D7 | Colisiones del OVNI escritas a mano | `config.py:124-126` + `hilos.py:231-235` | §5 |
+| D7 | Colisiones del OVNI escritas a mano | `config.py:123-125` + `hilos.py:231-235` | §5 |
 | D8 | Sin escudos, vidas, puntuación ni reinicio | `estado.py:100-140`, `partida.py:298-323` | §10, §11 |
 | D9 | `time.sleep(20)` en el OVNI | `hilos.py:69-82` (`_dormir` en rebanadas) | §5 |
 | D10 | Todos los hilos demonio | `hilos.py:50` (`daemon` por clase), `partida.py:146` (`join` real) | §5, §6 |

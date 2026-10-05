@@ -342,9 +342,14 @@ invocador es el enunciado), no por el rendimiento.
 
 ---
 
-## Registro de cambios
+## Nota sobre la versión de partida
 
-- `deepseek_python_20261005_8f30b2.py` — versión de partida, **sin modificar**.
-  Se conserva en el commit de línea base (`fa78275`) para poder comparar el
-  antes y el después durante la sustentación. Los diez defectos (D1–D10) se
-  citan en la tabla de arriba contra ese archivo.
+La versión original que entregó DeepSeek **no forma parte del repositorio**: se
+eliminó porque no aporta nada ejecutable y su contenido de pygame sin corregir
+compitía con el código bueno durante la revisión. Los diez defectos (D1–D10) de
+la tabla de arriba están documentados contra ella y son verificables sin el
+archivo, porque cada uno tiene un test en `tests/test_concurrencia.py` que
+falla si el defecto vuelve a colarse.
+
+Si hace falta comparar el antes y el después, el archivo sigue en el historial:
+`git show fa78275:deepseek_python_20261005_8f30b2.py`.

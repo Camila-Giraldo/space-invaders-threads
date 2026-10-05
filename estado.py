@@ -320,12 +320,3 @@ class Estado:
             self.ovni_activo = False
             # Barrera NUEVA: una por nivel, nunca reutilizada.
             self.listos_nivel = threading.Barrier(C.INVASOR_TOTAL + 1)
-
-    # ------------------------------------------------------------------
-    # Consultas derivadas (siempre bajo el lock que las llama)
-    # ------------------------------------------------------------------
-    def invasores_vivos(self) -> list[Invasor]:
-        return [i for i in self.invasores if i.vivo]
-
-    def player_y(self) -> float:
-        return float(C.JUGADOR_Y)

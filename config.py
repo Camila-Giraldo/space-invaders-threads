@@ -84,7 +84,6 @@ BOMBA_PX_POR_S = 180.0
 # --------------------------------------------------------------------------
 JUGADOR_W = 40
 JUGADOR_H = 20
-JUGADOR_PX_POR_S = 320.0
 JUGADOR_Y = HEIGHT - 50
 VIDAS_INICIALES = 3
 
@@ -148,13 +147,10 @@ TIMEOUT_JOIN_S = 1.0
 NEGRO = (0, 0, 0)
 BLANCO = (255, 255, 255)
 VERDE = (0, 255, 0)
-VERDE_OSCURO = (0, 140, 0)
 AMARILLO = (255, 255, 0)
 CYAN = (0, 255, 255)
 ROJO = (255, 80, 80)
 GRIS = (120, 120, 120)
-GRIS_OSCURO = (60, 60, 60)
-AZUL = (80, 120, 255)
 MAGENTA = (255, 0, 200)
 NARANJA = (255, 160, 40)
 
