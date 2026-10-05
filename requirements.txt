@@ -10,5 +10,9 @@
 pygame-ce>=2.5
 pytest>=8.0
 
+# El comando documentado usa `--timeout=30`: sin esto, un test que se cuelgue
+# por un bug de sincronizacion se queda colgado el CI sin avisar.
+pytest-timeout>=2.3
+
 # Solo para `benchmark.py --grafico`. No es necesario para jugar ni para testear.
 # matplotlib>=3.8
