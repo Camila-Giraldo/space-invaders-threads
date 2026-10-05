@@ -1200,7 +1200,7 @@ Para cuando alguien pregunte "¿y esto qué lo arregla?":
 | D5 | `bajar` nunca se reseteaba | `partida.py:296` (rama `else`) | §6 |
 | D6 | `time.time()` para medir ticks | `time.monotonic()` en `partida.py`, `hilos.py` | §3 |
 | D7 | Colisiones del OVNI escritas a mano | `config.py:123-125` + `hilos.py:231-235` | §5 |
-| D8 | Sin escudos, vidas, puntuación ni reinicio | `estado.py:100-140`, `partida.py:298-323` | §10, §11 |
+| D8 | Sin escudos, vidas, puntuación ni reinicio | `estado.py:100-138`, `partida.py:298-323` | §10, §11 |
 | D9 | `time.sleep(20)` en el OVNI | `hilos.py:69-82` (`_dormir` en rebanadas) | §5 |
 | D10 | Todos los hilos demonio | `hilos.py:50` (`daemon` por clase), `partida.py:146` (`join` real) | §5, §6 |
 | — | Un semáforo compartido no garantiza justicia | `estado.py:211` (32 permisos privados) | §1 |
