@@ -633,7 +633,7 @@ def test_el_demonio_peligroso_esta_apagado_por_defecto() -> None:
 
 
 # ===========================================================================
-# 7. La barrera de nivel
+# 8. La barrera de nivel
 # ===========================================================================
 def test_barrera_de_nivel_se_recrea_en_cada_ronda(estado_nuevo: Estado) -> None:
     """`nuevo_nivel` crea una barrera nueva: nunca se reutiliza."""
@@ -683,7 +683,7 @@ def test_la_barrera_se_cruza_en_cada_ronda() -> None:
 
 
 # ===========================================================================
-# 8. Reglas: victoria, derrota y avance de ronda
+# 9. Reglas: victoria, derrota y avance de ronda
 # ===========================================================================
 def test_limpiar_la_flota_marca_ronda_superada() -> None:
     """Con vivos = 0 y rondas pendientes, se marca `nivel_superado`, NO `fin`.
@@ -781,7 +781,7 @@ def test_la_pausa_congela_el_tick() -> None:
 
 
 # ===========================================================================
-# 9. Escudos
+# 10. Escudos
 # ===========================================================================
 def test_los_escudos_bloquean_y_se_degradan(estado_nuevo: Estado) -> None:
     """Un escudo pierde celdas y nunca se regenera solo."""
@@ -829,7 +829,7 @@ def test_las_balas_destruyen_escudos() -> None:
 
 
 # ===========================================================================
-# 10. Puntuacion
+# 11. Puntuacion
 # ===========================================================================
 def test_la_puntuacion_depende_de_la_fila() -> None:
     """50/40/30/20 de arriba abajo, como en el arcade."""
@@ -867,7 +867,7 @@ def test_matar_un_invasor_suma_su_puntuacion() -> None:
 
 
 # ===========================================================================
-# 11. Coherencia del estado bajo concurrencia real
+# 12. Coherencia del estado bajo concurrencia real
 # ===========================================================================
 def test_el_estado_permanece_coherente_con_proyectiles_vivos() -> None:
     """Con proyectiles volando, ningun invariante se rompe."""
