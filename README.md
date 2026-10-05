@@ -231,6 +231,11 @@ El paso 2 es obligatorio: **un semáforo no se despierta solo** con la señal
 
 ## Estructura del proyecto
 
+Este README es el resumen. El razonamiento completo de cada módulo —por qué 32
+semáforos y no uno, por qué los permisos se sueltan antes de la barrera, por qué
+un demonio obediente tampoco se puede `join`ear— está en
+**[`ARQUITECTURA.md`](ARQUITECTURA.md)**.
+
 ```
 config.py       constantes. Sin pygame.
 estado.py       entidades + Estado con TODAS las primitivas de sincronización.
@@ -241,6 +246,7 @@ telemetria.py   logging y volcado de contadores.
 benchmark.py    medición de aceleración (no usa pygame).
 main.py         bucle de pygame, teclado y apagado.
 tests/          43 tests headless.
+ARQUITECTURA.md el razonamiento de cada módulo, en detalle.
 ```
 
 `config`, `estado`, `hilos`, `partida`, `telemetria` y `benchmark` **no importan

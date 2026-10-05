@@ -114,7 +114,7 @@ class Partida:
 
         El orden importa: primero la senal `fin`, despues se devuelven los
         permisos de tick para despertar a quien estuviese bloqueado en
-        `tick_sem.acquire()` (un `acquire()` bloqueante no se despierta solo),
+        `permisos[i]` (un `acquire()` bloqueante no se despierta solo),
         y por ultimo los `join`.
         """
         if not self.en_juego:
