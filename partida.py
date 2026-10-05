@@ -112,10 +112,18 @@ class Partida:
     def apagar(self) -> None:
         """Apagado ordenado. Idempotente.
 
-        El orden importa: primero la senal `fin`, despues se devuelven los
-        permisos de tick para despertar a quien estuviese bloqueado en
-        `permisos[i]` (un `acquire()` bloqueante no se despierta solo),
-        y por ultimo los `join`.
+        El orden importa, y no por capricho: `fin` NO despierta a nadie. Cada
+        hilo esta bloqueado en un `acquire()` o en `barrera.wait()`, y eso no
+        se despierta solo. Por eso hay que soltar cada bloqueo a mano:
+
+          1. `fin.set()`                  la senal de parada.
+          2. `permisos[i].release()` x32  saca a los 32 invasores de su turno.
+          3. `disparo_sem.release()` x3   saca a los 3 del pool de bombas.
+             Sin este paso el proceso NO puede salir: quedan bloqueados en su
+             `acquire()` y ademas son no-demonio. Medido: cuelgue real.
+          4. `listos_nivel.abort()`       libera la barrera. Es defensa, no
+             estructura: los invasores comprueban `fin` antes de entrar en ella.
+          5. `join(timeout=...)`          y se COMPRUEBA con `is_alive()`.
         """
         if not self.en_juego:
             return
@@ -124,7 +132,9 @@ class Partida:
         e.fin.set()
 
         # Despertar a quien este bloqueado en un `acquire()`: un semaforo no
-        # se despierta solo con la senal `fin`.
+        # se despierta solo con la senal `fin`. Los dos bucles son
+        # ESTRUCTURALES: sin el segundo los 3 hilos del pool de bombas no
+        # salen nunca y el proceso no puede terminar.
         for sem in e.permisos:
             sem.release()
         for _ in range(C.MAX_BOMBAS):
@@ -223,7 +233,7 @@ class Partida:
         #
         # El orden importa: los permisos se sueltan ANTES de esperar en la
         # barrera de nivel, porque los hilos solo llegan a ella DESPUES de
-        # consumir su turno. Al revés, el principal esperaria 3 s a 32 hilos
+        # consumir su turno. Al reves, el principal esperaria 3 s a 32 hilos
         # que estan bloqueados en su `acquire()`, y la barrera se romperia.
         for sem in e.permisos:
             sem.release()

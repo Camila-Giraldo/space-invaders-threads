@@ -527,7 +527,7 @@ if x is None:
     continue  # defensa ante una desincronizacion improbable
 ```
 
-El apagado suelta tokens en `disparo_sem` (`partida.py:130-131`) para despertar
+El apagado suelta tokens en `disparo_sem` (`partida.py:140-141`) para despertar
 a los hilos del pool, porque un `acquire()` bloqueante no se despierta con la
 señal `fin`. Pero esos tokens **no tienen plaza reservada detrás**: si el hilo
 devolviera `bombas_libres` sin comprobar, el contador del semáforo pasaría de
@@ -673,7 +673,7 @@ sincronización en el log de una partida normal: en el log del resumen aparece
 `tick_max=2ms`. Si un día sube a 400 ms, hay un bug de sincronización que
 investigar.
 
-### `apagar()` — `partida.py:112-147`
+### `apagar()` — `partida.py:112-157`
 
 El apagado ordenado, y **el orden también es obligatorio**:
 
@@ -693,10 +693,33 @@ for h in e.hilos:                # 4. join con timeout
 paso 2, los 32 hilos de invasor y los 3 del pool quedarían bloqueados para
 siempre, y el proceso no podría salir aunque todos fueran no-demonio.
 
+**El paso 3 es igual de estructural, aunque el docstring de `apagar()` lo
+mencione menos.** Los tres hilos del pool están bloqueados en
+`disparo_sem.acquire()` (`hilos.py:300`). Medido: quitando ese `release()` de
+una copia del apagado,
+
+```
+apagando (sin disparo_sem.release())...
+  [VIVO tras join] bomba-0
+  [VIVO tras join] bomba-1
+  [VIVO tras join] bomba-2
+El proceso NO puede salir: son no-demonio.
+```
+
+el proceso no termina y hay que matarlo a la fuerza. Es el mismo razonamiento
+que justifica el paso 2, y conviene que el docstring lo diga, porque es la
+línea que alguien borraría sin querer.
+
+**El paso 4, en cambio, es defensa y no estructura.** Se comprobó quitándolo
+también: el apagado sale limpio igual, porque cada invasor comprueba
+`if e.fin.is_set(): return` **antes** de entrar en `barrera.wait()`
+(`hilos.py:125-126`), así que nunca llega a bloquear la barrera. Se deja por
+precaución, pero no hay que defenderlo como imprescindible.
+
 **El paso 3** es `Barrier.abort()`, que es lo equivalente para la barrera: la
 libera y marca el estado.
 
-**El paso 4 verifica en vez de asumir** (`partida.py:134-146`):
+**El paso 4 verifica en vez de asumir** (`partida.py:145-156`):
 
 ```python
 for h in e.hilos:
@@ -1179,7 +1202,7 @@ Para cuando alguien pregunte "¿y esto qué lo arregla?":
 | D7 | Colisiones del OVNI escritas a mano | `config.py:124-126` + `hilos.py:231-235` | §5 |
 | D8 | Sin escudos, vidas, puntuación ni reinicio | `estado.py:100-140`, `partida.py:298-323` | §10, §11 |
 | D9 | `time.sleep(20)` en el OVNI | `hilos.py:69-82` (`_dormir` en rebanadas) | §5 |
-| D10 | Todos los hilos demonio | `hilos.py:50` (`daemon` por clase), `partida.py:136` (`join` real) | §5, §6 |
+| D10 | Todos los hilos demonio | `hilos.py:50` (`daemon` por clase), `partida.py:146` (`join` real) | §5, §6 |
 | — | Un semáforo compartido no garantiza justicia | `estado.py:211` (32 permisos privados) | §1 |
 | — | Token fantasma al apagar el pool de bombas | `hilos.py:308-315` (sacar la petición antes de mirar `fin`) | §5 |
 | — | Orden tick/barrera invertido | `partida.py:228-239` (permisos antes de la barrera) | §6 |

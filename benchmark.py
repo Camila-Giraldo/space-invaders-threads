@@ -41,7 +41,7 @@ import time
 
 from config import INVASOR_STEP, INVASOR_TOTAL
 
-#: Tamaños a medir. 64 se incluye para que se vea que la tendencia no cambia
+#: Tamanos a medir. 64 se incluye para que se vea que la tendencia no cambia
 #: de signo al pasar del numero de hilos reales del juego.
 TAMANOS = (1, 2, 4, 8, 16, 32, 64)
 

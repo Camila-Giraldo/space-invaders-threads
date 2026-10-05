@@ -218,13 +218,13 @@ class Estado:
         self.nivel = 0
         self.listos_nivel = threading.Barrier(C.INVASOR_TOTAL + 1)
 
-        # ---------------- Semáforo de recursos: balas del jugador ---------
+        # ---------------- Semaforo de recursos: balas del jugador ---------
         # Cupo de 3 proyectiles. Se reserva con `acquire(blocking=False)`
         # ANTES de crear el hilo de la bala: si no hay cupo, la pulsacion se
         # descarta. Asi ningun hilo queda esperando turno (defecto D3).
         self.balas_sem = threading.Semaphore(C.MAX_BALAS)
 
-        # ---------------- Semáforos de recursos: bombas enemigas -----------
+        # ---------------- Semaforos de recursos: bombas enemigas -----------
         # `bombas_libres` es el cupo de proyectiles enemigos: lo reserva el
         # invasor (sin bloquear) y lo devuelve el hilo del pool al terminar.
         # `disparo_sem` transporta la peticion de disparo. Los dos juntos
