@@ -1,3 +1,7 @@
+# ---------------------------------------------------------------------------
+# Reglas propias del proyecto
+# ---------------------------------------------------------------------------
+
 # Entorno virtual
 .venv/
 venv/
@@ -17,3 +21,69 @@ aceleracion.png
 .idea/
 *.swp
 .DS_Store
+
+# ---------------------------------------------------------------------------
+# Reglas heredadas de la plantilla de GitHub (commit inicial del remoto).
+# Se conservan las que apliquen a un proyecto Python; se descartan las de
+# frameworks que este repositorio no usa (Django, RabbitMQ, Marimo, Pixi,
+# Spyder, Streamlit, celery, activemq...). Ver ARQUITECTURA.md, seccion 12.
+# ---------------------------------------------------------------------------
+
+# Entornos y secretos
+.env
+.envrc
+env/
+env.bak/
+
+# Empaquetado
+build/
+dist/
+sdist/
+wheels/
+develop-eggs/
+eggs/
+.eggs/
+parts/
+var/
+*.egg
+*.egg-info/
+.installed.cfg
+MANIFEST
+
+# C extensions
+*.so
+
+# Informes de pruebas y cobertura
+htmlcov/
+cover/
+.tox/
+.nox/
+.coverage
+.coverage.*
+*.cover
+*.py.cover
+*.lcov
+.hypothesis/
+nosetests.xml
+coverage.xml
+
+# Bases de datos
+db.sqlite3
+db.sqlite3-journal
+
+# Tipado, lint y notebooks
+.mypy_cache/
+.pytype/
+.pyre/
+.ruff_cache/
+.dmypy.json
+dmypy.json
+.ipynb_checkpoints/
+
+# Logs de instalacion
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Temporal
+temp/
+tmp/
