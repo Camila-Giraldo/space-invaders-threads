@@ -1,7 +1,7 @@
 """Tests de concurrencia. Headless: no usan pygame ni ventana.
 
-Cada test ataca un defecto concreto de la version de partida, de modo que la
-suite es tambien la demostracion de que el defecto esta corregido.
+Cada test fija una propiedad concreta de la sincronizacion, de modo que la
+suite es la demostracion ejecutable de que el diseno se cumple.
 
     .venv/bin/python -m pytest tests/ -v
 """
@@ -48,8 +48,7 @@ def correr_ticks(p: Partida, n: int) -> None:
 def test_tick_devuelve_todos_los_permisos_a_cero():
     """Tras un tick, ningun permiso queda sin usar.
 
-    Es el invariante que hace que este patron no pueda desalinearse nunca, a
-    diferencia de la barrera reutilizable de la version de partida.
+    Es el invariante que hace que este patron no pueda desalinearse nunca.
     """
     p = nueva_partida()
     p.arrancar()
@@ -81,16 +80,13 @@ def test_todos_los_hilos_mueven_en_cada_tick():
 def test_cada_hilo_recibe_su_propio_turno():
     """Los 32 invasores se mueven TODOS, ninguno se queda sin turno.
 
-    Este test fija un error de diseño real que apareció durante el
-    desarrollo: con UN semaforo compartido para los 32 turnos, un hilo ya
-    despierto puede vaciar los 32 permisos antes de que el planificador
-    despierte a los demas. Medido: el invasor 0 ejecutaba los 32 movimientos
-    del tick y los otros 31 ninguno, y el conteo de permisos cuadraba igual,
-    de modo que el defecto era invisible para cualquier assert sobre el
-    semaforo.
+    Con un semaforo compartido para los 32 turnos, un hilo ya despierto puede
+    vaciar los 32 permisos antes de que el planificador despierte a los demas,
+    y el conteo de permisos cuadra igual, de modo que el fallo es invisible
+    para un assert sobre el semaforo.
 
-    La solucion es un semaforo privado por hilo, `permisos[i]`: cada hilo solo
-    puede tomar su propio turno, asi que el encuentro 1:1 es exacto.
+    Con un semaforo privado por hilo, `permisos[i]`, cada hilo solo puede
+    tomar su propio turno, asi que el encuentro 1:1 es exacto.
     """
     x_inicial = [
         C.INVASOR_LEFT + c * C.INVASOR_SEP_X
@@ -118,8 +114,7 @@ def test_el_rendezvous_es_exacto_durante_10_ticks():
     La comprobacion NO es que las posiciones sean iguales (dentro de una fila
     los invasores estan separados 55 px), sino que el desplazamiento relativo
     dentro de la fila se mantiene intacto. Esa es la firma de que los 32 hilos
-    se movieron en cada tick y no solo algunos: con el semaforo compartido, un
-    unico invasor se movia el doble o el triple que sus companeros de fila.
+    se movieron en cada tick y no solo algunos.
     """
     p = nueva_partida()
     p.arrancar()
@@ -149,14 +144,9 @@ def test_el_rendezvous_es_exacto_durante_10_ticks():
 def test_el_turno_llega_aunque_lleguen_muy_desordenados():
     """Los 32 turnos se reparten exactos aunque los hilos lleguen escalonados.
 
-    Este test sustituye a una version anterior, inestable por diseno: aquella
-    reproducia el patron equivocado (un unico semaforo compartido para los 32
-    turnos) y comprobaba que fallaba, pero como el fallo es una condicion de
-    carrera unas veces se reproducia y otras no.
-
-    Aqui se prueba la propiedad del diseno correcto, que es determinista: con
-    permisos privados cada hilo solo puede tomar SU turno, se llegue cuando
-    llegue. Se meten retardos distintos por hilo para desordenar las llegadas.
+    Se prueba la propiedad del diseno, que es determinista: con permisos
+    privados cada hilo solo puede tomar SU turno, se llegue cuando llegue. Se
+    meten retardos distintos por hilo para desordenar las llegadas.
     """
     import random
 
@@ -187,20 +177,16 @@ def test_el_turno_llega_aunque_lleguen_muy_desordenados():
         p.apagar()
 
 # ===========================================================================
-# 2. Defectos D1 y D2: un hilo lento o que muere NO rompe la sincronizacion
+# 2. Un hilo lento o que muere NO rompe la sincronizacion
 # ===========================================================================
 
 
 def test_hilo_retrasado_no_rompe_la_sincronizacion():
-    """El escenario exacto que congelaba la version de partida.
+    """Un hilo retrasado mas de 1 s no rompe la sincronizacion.
 
-    En la version original, un solo hilo de invasor retrasado mas de 1 s hacia
-    que el `barrera.wait(timeout=1.0)` del principal lanzara
-    BrokenBarrierError, la barrera reusable quedara rota PARA SIEMPRE, los 32
-    hilos se fueran por su `return`, y el juego siguiera dibujando una flota
-    congelada sin mostrar ningun error.
-
-    Aqui el retraso solo produce un tick lento y un aviso en el log.
+    El retraso solo produce un tick lento y un aviso en el log: el semaforo de
+    turno no tiene estado de fallo, asi que el encuentro 1:1 se restablece en
+    el tick siguiente.
     """
     retraso = (C.TIMEOUT_ESPERA_TICK_S + 0.4) * 1000  # 1400 ms
     p = nueva_partida(retraso_invasor_ms=retraso)
@@ -211,7 +197,7 @@ def test_hilo_retrasado_no_rompe_la_sincronizacion():
 
         invasores = [h for h in p.estado.hilos if h.name.startswith("invasor-")]
         assert len(invasores) == C.INVASOR_TOTAL
-        assert all(h.is_alive() for h in invasores), "un invasor murio: regresion a D1"
+        assert all(h.is_alive() for h in invasores), "un invasor murio"
 
         # Y el juego sigue avanzando con normalidad.
         for h in p.estado.hilos:
@@ -274,14 +260,14 @@ def test_el_estado_no_se_desincroniza_si_muere_un_hilo():
 
 
 # ===========================================================================
-# 3. Defecto D3: el semaforo de balas limita de verdad las balas
+# 3. El semaforo de balas limita de verdad las balas
 # ===========================================================================
 def test_semaforo_de_balas_nunca_excede_el_cupo():
     """100 disparos seguidos: nunca mas de MAX_BALAS balas vivas.
 
-    En la version de partida, `balas_sem.acquire()` era bloqueante y se creaba
-    un hilo por pulsacion, asi que 100 pulsaciones dejaban 97 hilos en cola
-    esperando turno: el semaforo limitaba las balas, no los hilos.
+    El cupo se reserva sin bloquear antes de crear el hilo, asi que las 100
+    pulsaciones no dejan hilos en cola esperando turno: el semaforo limita las
+    balas y tambien los hilos.
     """
     p = nueva_partida()
     p.arrancar()
@@ -335,7 +321,7 @@ def test_bala_no_borra_otra_bala_igual():
 
 
 def test_el_reloj_usa_marcas_monotonas():
-    """D6: medir con `time.monotonic`, no con `time.time`.
+    """Medir con `time.monotonic`, no con `time.time`.
 
     `time.time` puede saltar hacia atras o hacia delante si se ajusta el reloj
     del sistema, lo que haria que un tick se disparase dos veces seguidas o
@@ -409,11 +395,10 @@ def test_las_bombas_del_pool_terminan_al_apagar():
 # 5. Constantes centralizadas y colisiones
 # ===========================================================================
 def test_colision_del_ovni_usa_las_constantes():
-    """D7: la zona de colision sale de config, no de numeros sueltos.
+    """La zona de colision sale de config, no de numeros sueltos.
 
-    En la version de partida el OVNI se dibujaba en y=40..60 y se colisionaba
-    con `40 <= bala.y <= 60` escritos a mano: cualquier cambio en el dibujo
-    dejaba la colision desincronizada sin avisar.
+    Si el dibujo y la colision usaran numeros escritos por separado, cualquier
+    cambio en uno dejaria al otro desincronizado sin avisar.
     """
     import inspect
 
@@ -421,7 +406,7 @@ def test_colision_del_ovni_usa_las_constantes():
 
     src = inspect.getsource(HiloBala._colisiones)
     assert "C.OVNI_Y" in src and "C.OVNI_W" in src and "C.OVNI_H" in src
-    assert "40 <=" not in src, "quedan numeros magicos de la version de partida"
+    assert "40 <=" not in src, "quedan numeros magicos sueltos en la colision"
 
 
 def test_el_ovni_tiene_posicion_valida(estado_nuevo: Estado) -> None:
@@ -484,9 +469,8 @@ def test_la_flota_avanza_hacia_la_derecha_al_empezar() -> None:
 def test_la_flota_gira_y_baja_al_llegar_al_borde() -> None:
     """Al tocar un margen lateral, invierte direccion y baja una fila.
 
-    Es el movimiento clasico de Space Invaders, y el punto donde la version de
-    partida tenia el defecto D5: `estado.bajar` se fijaba a True y nunca se
-    volvia a False, asi que tras el primer borde la flota bajaba en cada tick.
+    Es el movimiento clasico de Space Invaders: `estado.bajar` solo vale para
+    el tick del giro y vuelve a False, asi que la flota no baja en cada tick.
 
     Geometria: la flota empieza entre x=100 y x=485, y el borde derecho esta en
     x=740 (WIDTH - MARGEN - INVASOR_W). Ida: (740-485)/6 = 43 ticks. Vuelta:
@@ -516,19 +500,19 @@ def test_la_flota_gira_y_baja_al_llegar_al_borde() -> None:
         borde_derecho = C.WIDTH - C.INVASOR_MARGEN - C.INVASOR_W
         assert x_max >= borde_derecho, f"nunca llego al borde derecho (max {x_max})"
         assert x_min <= C.INVASOR_MARGEN, f"nunca llego al borde izquierdo (min {x_min})"
-        # Bajo, pero no una fila por tick: si `bajar` no se reseteara (D5), en
-        # 170 ticks la flota habria caido 170 * 20 = 3400 px, fuera de pantalla.
+        # Bajo, pero no una fila por tick: si `bajar` no se reseteara, en 170
+        # ticks la flota habria caido 170 * 20 = 3400 px, fuera de pantalla.
         caida = y_actual - y_inicial
         assert caida > 0, "la flota nunca bajo"
         assert caida < C.INVASOR_DROP * 10, (
-            f"la flota bajo {caida} px en 170 ticks: 'bajar' no se resetea (D5)"
+            f"la flota bajo {caida} px en 170 ticks: 'bajar' no se resetea"
         )
     finally:
         p.apagar()
 
 
 def test_la_flota_gira_una_sola_vez_por_borde() -> None:
-    """Tras el giro, `bajar` vuelve a False: no baja en cada tick (D5)."""
+    """Tras el giro, `bajar` vuelve a False: no baja en cada tick."""
     p = nueva_partida()
     p.arrancar()
     try:

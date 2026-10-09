@@ -1,11 +1,11 @@
 # Arquitectura del proyecto, módulo por módulo
 
 Este documento es la explicación detallada de **por qué** el código es como es.
-`README.md` tiene el resumen ejecutivo (tabla de primitivas, tabla de defectos y
-comandos); aquí está el razonamiento completo de cada módulo.
+`README.md` tiene el resumen ejecutivo (tabla de primitivas y comandos); aquí
+está el razonamiento completo de cada módulo.
 
-Los números de línea corresponden al commit `7e99cfc`. Si el código cambia, las
-referencias `archivo:línea` se desplazan, pero los nombres de símbolo no.
+Los números de línea son orientativos: si el código cambia, las referencias
+`archivo:línea` se desplazan, pero los nombres de símbolo se mantienen.
 
 ---
 
@@ -22,7 +22,6 @@ referencias `archivo:línea` se desplazan, pero los nombres de símbolo no.
 9. [`main.py` — el bucle tonto](#9-mainpy--el-bucle-tonto)
 10. [`benchmark.py` — la medición defendible](#10-benchmarkpy--la-medicion-defendible)
 11. [`tests/` y `conftest.py`](#11-tests-y-conftestpy)
-12. [Apéndice: dónde vive cada defecto](#12-apndice--dnde-vive-cada-defecto)
 
 ---
 
@@ -85,11 +84,10 @@ es que se ha roto la frontera.
 aparece en dos sitios debe estar aquí**, porque los números escritos a mano en
 dos sitios divergen.
 
-Fue el defecto **D7** de la versión de partida: el OVNI se dibujaba en
-`y=40..60` y la bala colisionaba contra `40 <= bala.y <= 60`, escritos a mano en
-sitios distintos. Los dos valores se separaron en algún momento y el OVNI se
-volvió imparable. Ahora los dos salen de `OVNI_Y`, `OVNI_H` y `OVNI_W`
-(`config.py:123-125`) y la colisión de `hilos.py:231-235`.
+Es la razón de fondo: si el OVNI se dibujara con un valor literal y la bala
+colisionara contra otro escrito aparte, los dos podrían separarse en cualquier
+cambio y la colisión quedaría mal sin avisar. Aquí ambos salen de `OVNI_Y`,
+`OVNI_H` y `OVNI_W` (`config.py:123-125`) y la colisión de `hilos.py:231-235`.
 
 ### Ritmo
 
@@ -145,11 +143,8 @@ conviene citar en la sustentación:
 #: seguridad, NUNCA una mecanica de juego: si se dispara, se registra en el log.
 ```
 
-En la versión de partida el timeout **era** la mecánica: al agotarse, el
-`except BrokenBarrierError: pass` se tragaba el error y la partida seguía con
-una flota congelada y sin decir nada. Aquí el timeout solo avisa, y como el
-permiso de turno se devuelve en un `finally` (`hilos.py:154-159`), avisar no
-desalinea el conteo.
+El timeout solo avisa, y como el permiso de turno se devuelve en un `finally`
+(`hilos.py:154-159`), avisar no desalinea el conteo.
 
 ---
 
@@ -235,29 +230,13 @@ lugar donde se muta estado compartido es un bug, y se ve leyendo.
 Este es el hallazgo técnico central del trabajo, y el comentario de
 `estado.py:199-207` lo documenta entero.
 
-La primera corrección del diseño fue un **único** semáforo `tick_sem` con 32
-permisos que el principal liberaba de golpe en cada tick. Parecía correcta: 32
-permisos, 32 hilos, 32 `acquire()`. El conteo cuadraba.
-
-No lo era. **`threading.Semaphore` no garantiza justicia.** Cuando el principal
-suelta 32 permisos de golpe y un hilo ya está despierto, ese hilo puede vaciarlos
-todos antes de que el planificador despierte a los otros 31, que se quedan
-esperando un permiso que ya no existe.
-
-Medido tras un tick:
-
-```
-x = [292, 155, 210, 265, 320, 375, ...]
-```
-
-El invasor 0 estaba en 292 y los otros en 155, 210, 265… El invasor 0 se había
-movido **32 veces** (100 → 292 = 32 × 6 px, con `INVASOR_STEP = 6`) y los otros
-31 **ninguna**.
-
-Lo importante para la sustentación: **el conteo de permisos cuadraba
-perfectamente**. Cada hilo consumió un permiso y devolvió un aviso. Cualquier
-aserción sobre el semáforo lo daba por bueno. El defecto era invisible a las
-comprobaciones obvias, y solo aparecía mirando las posiciones.
+**`threading.Semaphore` no garantiza justicia.** Cuando el principal suelta 32
+permisos de golpe y un hilo ya está despierto, ese hilo puede vaciarlos todos
+antes de que el planificador despierte a los otros 31, que se quedan esperando
+un permiso que ya no existe. Cada hilo consume un permiso, pero no
+necesariamente el suyo, y **el conteo cuadra perfectamente**: cualquier aserción
+sobre el semáforo lo da por bueno aunque las posiciones revelen que solo uno se
+movió.
 
 **La solución: un semáforo privado por hilo.** `permisos` es una lista de 32
 semáforos, y el hilo *i* solo puede tomar el suyo:
@@ -294,29 +273,12 @@ self.listos_nivel = threading.Barrier(C.INVASOR_TOTAL + 1)
 Se crea en `nuevo_nivel()` (`estado.py:322`), es decir **una instancia nueva por
 ronda**, y nunca se le pasa `timeout` a los hilos de juego: solo al principal.
 
-La versión de partida usaba dos `threading.Barrier(33)` **reutilizables**, y ese
-es el defecto **D1**:
-
-```python
-# `threading.Barrier.wait(timeout=1.0)` NO devuelve False si se agota el
-# tiempo: lanza BrokenBarrierError y ademas pone la barrera en estado roto
-# IRREVERSIBLE.
-```
-
-El `except BrokenBarrierError: pass` se tragaba ese error, y un solo hilo
-retrasado más de 1 s mataba la sincronización para el resto de la partida: los
-32 hilos se iban por su `return` y el juego seguía dibujando una flota
-congelada sin decir nada. Medido en la versión original:
-
-```
-tick 1: BARRERA ROTA (tras 1.00s)
-invasores vivos: 0 / 32 -> flota congelada para siempre
-```
-
-Un semáforo no tiene estado de fallo: si un hilo tarda más, solo hace que el
-principal espere más. Por eso los 32 permisos del tick son semáforos, y la
-barrera sobrevive solo como reunión de ronda, donde no se le da timeout a
-nadie y no puede quedar rota.
+`threading.Barrier.wait(timeout=...)` **no** devuelve `False` si se agota el
+tiempo: lanza `BrokenBarrierError` y además deja la barrera en un estado roto
+**irreversible**. Por eso el turno de tick no usa barreras: usa semáforos, que
+no tienen estado de fallo (si un hilo tarda más, solo hace que el principal
+espere más). La barrera sobrevive solo como reunión de ronda, donde no se le da
+timeout a nadie y no puede quedar rota.
 
 ---
 
@@ -362,10 +324,7 @@ def run(self) -> None:
         self.estado.fin.set()
 ```
 
-En la versión de partida, un hilo de invasor que moría por una excepción
-dejaba la barrera reutilizable sin sus 33 partes, y el juego se congelaba **sin
-mostrar ningún error**. Aquí una muerte es visible en el log y orderly: marca
-`fin` y el apagado procede.
+Una muerte es visible en el log y ordenada: marca `fin` y el apagado procede.
 
 **c) `_dormir()` duerme en rebanadas** (`hilos.py:69-82`):
 
@@ -380,9 +339,8 @@ while True:
     time.sleep(min(0.05, restante))
 ```
 
-Arregla el defecto **D9**: el OVNI de la versión de partida hacía
-`time.sleep(20)`, así que el apagado tardaba hasta 20 segundos en notarse.
-Aquí cualquier espera se reposa cada 50 ms y comprueba la señal de parada.
+Cualquier espera se reposa cada 50 ms y comprueba la señal de parada, así que
+la cancelación se nota de inmediato aunque la espera completa sea de segundos.
 
 ### `HiloInvasor` — el corazón del diseño
 
@@ -411,8 +369,7 @@ hace nada y devuelve su aviso. El conteo de 32 siempre cuadra.
 Eso elimina de raíz **toda la familia de fallos por hilos caídos**. La
 alternativa —que un hilo muerto salga del bucle y deje de participar— obliga a
 que el principal detecte la muerte y rebaje el contador esperado, que es
-exactamente el tipo de estado repartido que produce los errores de la versión de
-partida.
+exactamente el tipo de estado repartido que introduce condiciones de carrera.
 
 Lo cubre `test_el_estado_no_se_desincroniza_si_muere_un_hilo`
 (`tests/test_concurrencia.py:251`).
@@ -461,19 +418,18 @@ hilo, no una pausa del SO. La prueba de estrés debe golpear el mutex.
 `hilos.py:181-267`. El cupo no lo toma este hilo: lo reserva `Partida.disparar()`
 con `blocking=False` **antes** de crearlo (`partida.py:173`).
 
-El comentario cuantifica el defecto **D3** de la versión de partida:
+El comentario lo explica:
 
 ```python
 # El cupo de `balas_sem` lo reserva `Partida.disparar()` con
 # `blocking=False` ANTES de crear este hilo. Por eso ningun hilo queda
-# esperando turno en el semaforo, que era el defecto D3: en la version
-# de partida, 20 pulsaciones de espacio creaban 20 hilos y 17 se quedaban en
-# cola disparando en rafaga.
+# esperando turno en el semaforo: las pulsaciones sin cupo se descartan,
+# no se encolan.
 ```
 
-Con la versión de partida, el `acquire()` era bloqueante **dentro** del hilo, así
-que el cupo no limitaba nada: los hilos se acumulaban en la cola del semáforo y
-disparaban en ráfaga cuando los anteriores morían.
+Si el `acquire()` fuera bloqueante **dentro** del hilo, el cupo no limitaría
+nada: los hilos se acumularían en la cola del semáforo y dispararían en ráfaga
+cuando los anteriores murieran.
 
 **Propiedad de los recursos en las colisiones** (`hilos.py:247-251`):
 
@@ -507,8 +463,8 @@ La plaza ya la reservó el invasor con `bombas_libres.acquire(blocking=False)`
 (`hilos.py:173`), así que nunca hay más de `MAX_BOMBAS` bombas vivas ni se
 acumulan tokens.
 
-**El token fantasma** (`hilos.py:302-315`) es un bug que encontré midiendo, y es
-buen ejemplo de por qué los timeouts de apagado hay que hacerlos bien:
+**El token fantasma** (`hilos.py:302-315`) es el caso delicado del apagado, y
+buen ejemplo de por qué hay que hacerlo bien:
 
 ```python
 # Se saca la peticion ANTES de mirar `fin`, porque un token sin
@@ -624,8 +580,8 @@ for sem in e.permisos:
     sem.release()
 ```
 
-**Fase 2 — la barrera de ronda** (`partida.py:231-239`), y aquí está el **orden
-obligatorio**, fuente de otro bug que encontré antes de corregirlo:
+**Fase 2 — la barrera de ronda** (`partida.py:231-239`), y aquí el **orden es
+obligatorio**:
 
 ```python
 # El orden importa: los permisos se sueltan ANTES de esperar en la
@@ -747,8 +703,8 @@ if not e.balas_sem.acquire(blocking=False):
     return False
 ```
 
-`blocking=False` es lo que arregla D3. Si no hay cupo, la pulsación **se
-descarta** (y se cuenta en `disparos_rechazados`), no se encola.
+`blocking=False` es lo que hace que el cupo se respete. Si no hay cupo, la
+pulsación **se descarta** (y se cuenta en `disparos_rechazados`), no se encola.
 
 **La poda de hilos efímeros** (`partida.py:182-185`):
 
@@ -775,10 +731,9 @@ leen. La alternativa —que cada invasor compruebe el borde y escriba `direccion
 y `bajar`— sería 32 escritores compitiendo por los mismos dos campos, y el
 resultado dependería del orden de ejecución.
 
-Aquí está también la corrección del defecto **D5**: `bajar` se recalcula en
-cada tick, y la rama `else` lo pone a `False`. En la versión de partida se fijaba
-a `True` al primer borde y nunca volvía a `False`, así que tras el primer giro la
-flota bajaba en cada tick.
+`bajar` se recalcula en cada tick, y la rama `else` lo pone a `False`: solo vale
+para el tick del giro, así que la flota no baja en cada tick tras el primer
+borde.
 
 ### `_revisar_estado()` — `partida.py:298-323`
 
@@ -823,9 +778,8 @@ compartido pasa por el lock" deja de tener excepciones que recordar.
 #     dibujar(screen, snapshot)           # todo el dibujado FUERA del lock
 ```
 
-En la versión de partida, las ~30 líneas de dibujado estaban **dentro** de
-`with estado.lock`. Cada frame congelaba a los 36 hilos durante el dibujado.
-Ese es el defecto **D4**.
+Dibujar es la operación más lenta del frame: si ocurriera **dentro** de
+`with estado.lock`, cada frame congelaría a los 36 hilos durante el dibujado.
 
 ### `tomar_snapshot()` — `render.py:159-181`
 
@@ -1052,7 +1006,7 @@ for sem in permisos:  # un permiso privado por hilo, como en el juego
     sem.release()
 ```
 
-Si usara un semáforo compartido, mediría un defecto en vez del diseño real.
+Si usara un semáforo compartido, mediría un diseño distinto del real.
 
 ### Los resultados
 
@@ -1146,11 +1100,11 @@ milisegundos en lugar de 170 × 180 ms = 30 segundos.
 | § | Tests | Qué demuestra |
 |---|---|---|
 | 1 | 6 | El encuentro 1:1: permisos a cero tras cada tick, los 32 se mueven, cada hilo recibe el suyo, y funciona con llegadas muy desordenadas |
-| 2 | 3 | **D1 y D2**: un hilo retrasado o muerto no rompe la sincronización |
-| 3 | 4 | **D3** el cupo de balas, `eq=False`, **D6** reloj monotónico |
+| 2 | 3 | Un hilo retrasado o muerto no rompe la sincronización |
+| 3 | 4 | El cupo de balas, `eq=False`, reloj monotónico |
 | 4 | 3 | El cupo del pool de bombas nunca se excede ni se rompe |
-| 5 | 3 | **D7**: las colisiones del OVNI salen de constantes |
-| 6 | 4 | **D5**: giro en ambos bordes, un solo descenso, no salir de pantalla |
+| 5 | 3 | Las colisiones del OVNI salen de constantes |
+| 6 | 4 | Giro en ambos bordes, un solo descenso, no salir de pantalla |
 | 7 | 4 | Apagado < 2 s, idempotente, durante un tick, y el contraste demonio / no-demonio |
 | 8 | 3 | La barrera se recrea en cada ronda y no se reutiliza |
 | 9 | 6 | Victoria, invasión, pausa, aceleración por ronda |
@@ -1169,7 +1123,7 @@ delta = [x[base + c] - x_inicial[base + c] for c in range(C.INVASOR_COLUMNAS)]
 assert len(set(delta)) == 1, f"la fila {f} se movio de forma desigual: {delta}"
 ```
 
-Esa es exactamente la firma del bug del semáforo compartido: un único invasor
+Esa es exactamente la firma de un reparto de turnos desigual: un único invasor
 moviéndose el doble o el triple que sus compañeros de fila.
 
 **`test_el_reloj_usa_marcas_monotonas`**
@@ -1177,32 +1131,10 @@ moviéndose el doble o el triple que sus compañeros de fila.
 sino que **el código fuente** no contiene `time.time()`:
 
 ```python
-# D6: la version de partida usaba `time.time()`, que salta si se ajusta el
-# reloj del sistema. La partida debe usar `time.monotonic()`.
+# `time.time()` salta si se ajusta el reloj del sistema. La partida debe
+# usar `time.monotonic()`.
 ```
 
 Es un test estático sobre el código, y es válido porque un reloj que salta
 produciría ticks negativos o esperas de horas, que son fallos difíciles de
 reproducir en una prueba.
-
----
-
-## 12. Apéndice: dónde vive cada defecto
-
-Para cuando alguien pregunte "¿y esto qué lo arregla?":
-
-| # | Defecto | Dónde se arregla | Qué lo fija |
-|---|---|---|---|
-| D1 | Barrera reutilizable rota de forma irreversible | `estado.py:211` (permisos en vez de barrera), `estado.py:322` (barrera nueva por ronda) | §1, §2 |
-| D2 | Carrera de salida entre las dos barreras | `hilos.py:154-159` (`finally`), `hilos.py:100-103` (los hilos no mueren) | §2 |
-| D3 | `acquire()` bloqueante + un hilo por pulsación | `partida.py:173` (`blocking=False` antes de crear el hilo) | §3 |
-| D4 | ~30 líneas de dibujado dentro del lock | `render.py:159-181` (`Snapshot`) | §7 |
-| D5 | `bajar` nunca se reseteaba | `partida.py:296` (rama `else`) | §6 |
-| D6 | `time.time()` para medir ticks | `time.monotonic()` en `partida.py`, `hilos.py` | §3 |
-| D7 | Colisiones del OVNI escritas a mano | `config.py:123-125` + `hilos.py:231-235` | §5 |
-| D8 | Sin escudos, vidas, puntuación ni reinicio | `estado.py:100-138`, `partida.py:298-323` | §10, §11 |
-| D9 | `time.sleep(20)` en el OVNI | `hilos.py:69-82` (`_dormir` en rebanadas) | §5 |
-| D10 | Todos los hilos demonio | `hilos.py:50` (`daemon` por clase), `partida.py:146` (`join` real) | §5, §6 |
-| — | Un semáforo compartido no garantiza justicia | `estado.py:211` (32 permisos privados) | §1 |
-| — | Token fantasma al apagar el pool de bombas | `hilos.py:308-315` (sacar la petición antes de mirar `fin`) | §5 |
-| — | Orden tick/barrera invertido | `partida.py:228-239` (permisos antes de la barrera) | §6 |

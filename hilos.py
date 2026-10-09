@@ -13,8 +13,7 @@ Reparto de responsabilidades
 
 Por que unos son demonio y otros no: `join` es lo que GARANTIZA que un hilo
 termine; `daemon=True` es lo que SACRIFICA esa garantia a cambio de que el
-proceso pueda salir sin esperar. En la version de partida todos los hilos eran
-demonios, asi que el `join` no demostraba nada. Aqui el contraste es visible.
+proceso pueda salir sin esperar. Cada hilo declara de que lado esta.
 """
 
 from __future__ import annotations
@@ -40,11 +39,9 @@ _contador = itertools.count(1)
 class HiloSeguro(threading.Thread):
     """Base de todos los hilos del juego.
 
-    Captura cualquier excepcion inesperada y la registra. Esto importa por un
-    motivo concreto: en la version de partida, un hilo de invasor que moría por
-    una excepcion dejaba la barrera reutilizable sin las 33 partes y el juego
-    se congelaba sin mostrar ningun error. Aqui, un hilo que muere marca `fin`
-    y el apagado es ordenado y visible en el log.
+    Captura cualquier excepcion inesperada y la registra. Un hilo que muere
+    marca `fin` y el apagado es ordenado y visible en el log, en vez de
+    detener la sincronizacion en silencio.
     """
 
     daemon = False
@@ -69,8 +66,8 @@ class HiloSeguro(threading.Thread):
     def _dormir(self, segundos: float) -> bool:
         """Duerme en rebanadas. True si hay que terminar porque se puso `fin`.
 
-        Evita el `time.sleep(20)` de la version de partida, que hacia que el
-        apagado tardase hasta 20 segundos en notarse.
+        Dormir en rebanadas de 50 ms hace que la senal de parada se note de
+        inmediato, aunque la espera completa sea mucho mas larga.
         """
         limite = time.monotonic() + segundos
         while True:
@@ -183,9 +180,8 @@ class HiloBala(HiloSeguro):
 
     El cupo de `balas_sem` lo reserva `Partida.disparar()` con
     `blocking=False` ANTES de crear este hilo. Por eso ningun hilo queda
-    esperando turno en el semaforo, que era el defecto D3: en la version de
-    partida, 20 pulsaciones de espacio creaban 20 hilos y 17 se quedaban en
-    cola disparando en rafaga.
+    esperando turno en el semaforo: las pulsaciones sin cupo se descartan,
+    no se encolan.
     """
 
     def __init__(self, estado, x: float) -> None:
@@ -277,9 +273,8 @@ class HiloBomba(HiloSeguro):
     proyectil ya la reservo el invasor con `bombas_libres.acquire(False)`, asi
     que nunca hay mas de `MAX_BOMBAS` bombas vivas y nunca se acumulan tokens.
 
-    Ventaja frente a la version de partida (que no tenia bombas): un pool de
-    tamanho fijo no crea hilos por evento, y al no ser demonios se pueden
-    cerrar con `join`.
+    Un pool de tamanho fijo no crea hilos por evento, y al no ser demonios se
+    pueden cerrar con `join`.
     """
 
     def __init__(self, estado, numero: int) -> None:

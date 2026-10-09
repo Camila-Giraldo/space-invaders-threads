@@ -174,9 +174,7 @@ class Partida:
 
         El cupo se reserva con `blocking=False` ANTES de crear el hilo. Asi el
         semaforo limita de verdad las balas vivas: no se encolan pulsaciones
-        pendientes, que era el defecto D3 de la version de partida (20
-        pulsaciones creaban 20 hilos y 17 quedaban en cola disparando en
-        rafaga).
+        pendientes ni se acumulan hilos esperando turno.
         """
         e = self.estado
         with e.lock:
@@ -212,8 +210,7 @@ class Partida:
     def tick(self) -> None:
         """Un tick completo de la flota.
 
-        Este es el corazon del sincronismo y sustituye a las dos barreras
-        reutilizables de la version de partida:
+        Este es el corazon del sincronismo:
 
             fase 1   un `release()` por hilo  -> los 32 reciben su permiso
             fase 2   32 `acquire()`           -> se espera a que los 32 terminen

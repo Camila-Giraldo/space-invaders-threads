@@ -1,9 +1,8 @@
 # Space Invaders concurrente
 
-Juego de arcade en Python con `pygame`, reescrito desde cero para que la
-concurrencia sea **correcta y demostrable**: cada invocador de `threading`
-tiene un problema concreto que resuelve, y cada defecto de la versión anterior
-tiene un test que lo fija.
+Juego de arcade en Python con `pygame` en el que la concurrencia es **correcta
+y demostrable**: cada invocador de `threading` tiene un problema concreto que
+resuelve, y cada propiedad de la sincronización tiene un test que la fija.
 
 - **32 hilos de invocador** (uno por invasor, de larga vida)
 - **3 hilos de pool de bombas** enemigas
@@ -74,53 +73,22 @@ y a demostrar que nadie lo viola. El coste está medido y es aceptable.
 
 ---
 
-## El diseño del tick, y dos errores reales que conviene documentar
+## El diseño del tick
 
-El corazón del sincronismo es un tick de la flota. La versión de partida lo
-hacía con dos `threading.Barrier(33)` **reutilizables**. Aquí hace falta otro
-enfoque, y el camino hasta el paso por dos errores que vale la pena documentar.
+El corazón del sincronismo es un tick de la flota: dar el turno a cada hilo,
+esperar a que los 32 terminen y decidir el giro.
 
-### Error 1: la barrera reutilizable se rompe para siempre
+### El encuentro 1:1: un semáforo privado por hilo
 
-`threading.Barrier.wait(timeout=1.0)` **no** devuelve `False` si se agota el
-tiempo: lanza `BrokenBarrierError` y además pone la barrera en estado roto
-**irreversible**. En la versión de partida el `except BrokenBarrierError: pass`
-se tragaba ese error, y un solo hilo retrasado más de 1 s mataba la
-sincronización para el resto de la partida: los 32 hilos se iban por su
-`return`, y el juego seguía dibujando una flota congelada sin decir nada.
+`threading.Semaphore` **no garantiza justicia**. Cuando el principal suelta 32
+permisos de golpe y un hilo ya está despierto, ese hilo puede vaciarlos todos
+antes de que el planificador despierte a los demás, que se quedan esperando.
+Cada hilo consume un permiso, pero no necesariamente el suyo.
 
-Medido en la versión original:
-
-```
-tick 1: BARRERA ROTA (tras 1.00s)
-invasores vivos: 0 / 32 -> flota congelada para siempre
-```
-
-Un semáforo no tiene estado de fallo: si un hilo tarda más, solo hace que el
-principal espere más.
-
-### Error 2: un semáforo **compartido** tampoco sirve para un encuentro 1:1
-
-La primera corrección fue usar **un** semáforo `tick_sem` compartido con 32
-permisos, que el principal liberaba de golpe en cada tick. Parecía correcta. No
-lo era:
-
-```
-tras 1 tick -> x = [292, 155, 210, 265, 320, 375, ...]
-```
-
-El invasor 0 se había movido **32 veces** (100 → 292 = 32 × 6 px) y los otros
-31 **ninguna**. El contador de permisos cuadraba perfectamente, de modo que
-cualquier aserción sobre el semáforo lo daba por bueno.
-
-El motivo es que `Semaphore` **no garantiza justicia**. Cuando el principal
-suelta 32 permisos de golpe y un hilo ya está despierto, ese hilo los vacía
-todos antes de que el planificador despierte a los demás, que se quedan
-esperando. Cada hilo consume un permiso, pero no necesariamente el suyo.
-
-**La solución: un semáforo privado por hilo.** `estado.permisos` es una lista
-de 32 semáforos, y el hilo *i* solo puede tomar el suyo. El encuentro 1:1 pasa
-a ser exacto por construcción, llegue quien llegue y cuando llegue.
+Por eso el turno se reparte con **un semáforo privado por hilo**:
+`estado.permisos` es una lista de 32 semáforos, y el hilo *i* solo puede tomar
+el suyo. El encuentro 1:1 es exacto por construcción, llegue quien llegue y
+cuando llegue.
 
 ```python
 # partida.py -- dar el turno
@@ -142,11 +110,11 @@ for _ in range(32):             # 3. esperar los 32 "ya me moví"
     e.listo_sem.acquire(timeout=1.0)
 ```
 
-El orden del punto 2 es obligatorio y es la fuente de otro bug encontrado: los
-hilos **solo llegan a la barrera después de consumir su turno**. Si el
-principal espera en la barrera antes de soltar los permisos, espera 3 s a 32
-hilos que están bloqueados en su `acquire()`, la barrera se rompe y cada
-cambio de ronda cuesta 3 segundos de congelación.
+El orden del punto 2 es obligatorio: los hilos **solo llegan a la barrera
+después de consumir su turno**. Si el principal espera en la barrera antes de
+soltar los permisos, espera 3 s a 32 hilos que están bloqueados en su
+`acquire()`, la barrera se rompe y cada cambio de ronda cuesta 3 segundos de
+congelación.
 
 `listo_sem` sí es compartido, y a propósito: al principal solo le interesa un
 total de 32 avisos, no quién los dará.
@@ -173,8 +141,7 @@ familia de fallos por hilos caídos.
 
 ## Demonios: `join` y `daemon=True` no son lo mismo
 
-En la versión de partida **todos** los hilos eran demonios, así que el `join`
-no demostraba nada. Aquí el contraste es explícito:
+El contraste entre `join` y `daemon=True` es explícito:
 
 | Hilo                  | `daemon` | Motivo |
 |-----------------------|----------|--------|
@@ -209,23 +176,6 @@ for h in e.hilos:                # 4. join con timeout
 El paso 2 es obligatorio: **un semáforo no se despierta solo** con la señal
 `fin`. Sin él, los 32 hilos de la flota quedarían bloqueados para siempre en
 `acquire()` y el proceso no podría salir.
-
----
-
-## Defectos de la versión de partida y qué se hizo
-
-| # | Defecto | Ubicación original | Solución |
-|---|---------|--------------------|----------|
-| D1 | Barrera reutilizable rota de forma irreversible; un hilo lento congela la flota para siempre | `barrera.wait(timeout=1.0)` + `except BrokenBarrierError: pass` | Semáforos de turno, uno privado por hilo. Sin estado de fallo. |
-| D2 | Carrera de salida: el `return` entre las dos barreras dejaba el conteo de partes incompleto | entre las dos barreras reutilizables | El permiso se devuelve en `finally`; los hilos no mueren nunca en partida. |
-| D3 | `balas_sem.acquire()` bloqueante + un hilo por pulsación: 100 pulsaciones creaban 100 hilos y 97 quedaban en cola | `hilo_bala` | `acquire(blocking=False)` antes de crear el hilo. Si no hay cupo, la pulsación **se descarta**. |
-| D4 | Las ~30 líneas de dibujado dentro de `estado.lock` congelaban a los 36 hilos en cada frame | bloque de render | `Snapshot`: una pasada rápida bajo el lock, todo el dibujado fuera. |
-| D5 | `estado.bajar` nunca se reseteaba cuando `vivos` era vacío | `_revisar_estado` | Se recalcula en cada tick desde las posiciones reales. |
-| D6 | `time.time()` para medir ticks: salta si se ajusta el reloj del sistema | reloj de la partida | `time.monotonic()`. Hay un test que lo comprueba sobre el código fuente. |
-| D7 | El OVNI se dibujaba en `y=40..60` y se colisionaba con `40 <= bala.y <= 60` escritos a mano | `hilo_bala` vs `pygame.draw.rect` | Todo sale de `config.OVNI_Y/W/H`. Hay un test que lo comprueba. |
-| D8 | Sin escudos, sin vidas, sin puntuación, sin reinicio: no se podía perder ni ganar | — | Escudos destructibles, 3 vidas, 50/40/30/20 por fila, `R` reinicia, pausa con `P`. |
-| D9 | `time.sleep(20)` en el OVNI: el apagado tardaba hasta 20 s en notarse | `hilo_ovni` | Duerme en rebanadas de 50 ms comprobando `fin`. |
-| D10 | `Thread(..., daemon=True)` en todo: el `join` no demostraba nada | todos los hilos | No-demonio para lo esencial, demonio para lo accesorio. |
 
 ---
 
@@ -273,29 +223,28 @@ pasada rápida, y luego se dibuja sin lock. Los sprites se pre-renderizan a
 .venv/bin/python -m pytest tests/ -v      # 43 tests, ~12 s
 ```
 
-Headless y deterministas. Cada uno ataca un defecto concreto:
+Headless y deterministas. Cada uno fija una propiedad concreta:
 
 - el invariante de permisos (todos a cero tras cada tick);
 - que los 32 hilos se mueven en cada tick, incluso con llegadas desordenadas;
-- el test de estrés que congelaba la versión original (retraso de 1,4 s);
+- el test de estrés con un hilo retrasado 1,4 s;
 - el cupo de balas y el de bombas, y que los saldos nunca excedan la capacidad;
 - la barrera se recrea en cada ronda y no se reutiliza;
 - el apagado termina los 35 hilos en menos de 2 s y es idempotente;
 - que la partida continue tras la muerte de un hilo;
 - `eq=False` en las entidades, para que `list.remove` borre la bala correcta;
 - que la flota llegue a los dos bordes, gire, baje **una** fila y no se salga
-  de la pantalla (aquí está D5: `bajar` nunca se reseteaba);
+  de la pantalla;
 - escudos, puntuación, pausa, victoria, invasión, avance de ronda.
 
-### Reproducir el congelamiento original
+### Test de estrés de sincronización
 
 ```bash
 python main.py --retraso-invasor 1400
 ```
 
-Un hilo se duerme 1,4 s en cada tick (más que el timeout de 1 s). En la versión
-original esto congelaba la flota para siempre; aquí solo produce un tick lento y
-un aviso en el log:
+Un hilo se duerme 1,4 s en cada tick (más que el timeout de 1 s). No rompe la
+sincronización: solo produce un tick lento y un aviso en el log.
 
 ```
 [WARNING] MainThread : tick 20: el hilo 20 no respondio en 1.0s
@@ -339,17 +288,3 @@ La conclusión defendible en la sustentación es precisamente esa: la
 aceleración real es `S(n) ≤ 1`, y el coste crece linealmente con *n*. La
 arquitectura con hilos está justificada por el modelo de dominio (un hilo por
 invocador es el enunciado), no por el rendimiento.
-
----
-
-## Nota sobre la versión de partida
-
-La versión original que entregó DeepSeek **no forma parte del repositorio**: se
-eliminó porque no aporta nada ejecutable y su contenido de pygame sin corregir
-compitía con el código bueno durante la revisión. Los diez defectos (D1–D10) de
-la tabla de arriba están documentados contra ella y son verificables sin el
-archivo, porque cada uno tiene un test en `tests/test_concurrencia.py` que
-falla si el defecto vuelve a colarse.
-
-Si hace falta comparar el antes y el después, el archivo sigue en el historial:
-`git show fa78275:deepseek_python_20261005_8f30b2.py`.

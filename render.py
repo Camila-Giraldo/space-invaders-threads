@@ -5,10 +5,9 @@ REGLA: el render NUNCA dibuja mientras otro hilo escribe. El flujo es siempre
     snapshot = tomar_snapshot(estado)   # una pasada rapida BAJO el lock
     dibujar(screen, snapshot)           # todo el dibujado FUERA del lock
 
-En la version de partida, las 30 lineas de dibujado estaban dentro de
-`with estado.lock`, de modo que cada frame congelaba a los 32 hilos de la
-flota durante el dibujado (defecto D4). Aqui la frontera es el dataclass
-`Snapshot`.
+Dibujar es la operacion mas lenta del frame, asi que no puede ocurrir bajo el
+lock: si lo hiciera, cada frame congelaria a los 32 hilos de la flota durante
+el dibujado. La frontera es el dataclass `Snapshot`.
 """
 
 from __future__ import annotations

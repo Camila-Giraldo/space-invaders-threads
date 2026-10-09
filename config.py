@@ -6,7 +6,7 @@ ejecutar y probar en modo headless (sin ventana), y solo `render`/`main`
 tocan la libreria grafica.
 
 Convencion de nombres en español para las constantes y en ingles para los
-identificadores de clase y metodo, igual que en la version de partida.
+identificadores de clase y metodo.
 """
 
 from __future__ import annotations

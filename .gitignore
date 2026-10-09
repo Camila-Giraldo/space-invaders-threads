@@ -23,11 +23,7 @@ aceleracion.png
 .DS_Store
 
 # ---------------------------------------------------------------------------
-# Reglas heredadas de la plantilla de GitHub (commit inicial del remoto).
-# Se conservan las que apliquen a un proyecto Python; se descartan las de
-# frameworks que este repositorio no usa (Django, RabbitMQ, Marimo, Pixi,
-# Spyder, Streamlit, celery, activemq...). No se copiaron las reglas lib/
-# y lib64/: ignorarian directorios de nombre generico.
+# Reglas habituales de un proyecto Python.
 # ---------------------------------------------------------------------------
 
 # Entornos y secretos

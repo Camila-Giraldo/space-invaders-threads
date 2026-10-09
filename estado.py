@@ -147,7 +147,7 @@ class Snapshot:
     El render nunca dibuja mientras el juego escribe. Este dataclass es la
     frontera: se rellena bajo el lock en una sola pasada rapida y luego se
     dibuja fuera, de modo que los hilos de la flota no se detienen durante
-    el dibujado. Ese era el defecto D4 de la version de partida.
+    el dibujado.
     """
 
     jugador_x: float
@@ -192,19 +192,13 @@ class Estado:
         self.fin = threading.Event()
 
         # ---------------- Primitiva 3 y 4: semaforos del ciclo de tick -----
-        # Reemplazan a la barrera reutilizable de la version de partida, cuyo
-        # estado "roto" era irreversible: un solo hilo retrasado mas de 1 s
-        # mataba la sincronizacion para el resto de la partida (defecto D1).
-        #
         # `permisos[i]` es el permiso de movimiento DEL HILO i. Son 32
         # semaforos privados en vez de uno compartido, y no es un capricho:
         # un semaforo compartido NO es justo. Si el principal libera 32
         # permisos de golpe y un hilo ya esta despierto, ese hilo puede
         # vaciarlos todos antes de que el planificador despierte a los otros
-        # 31, que se quedan esperando. Medido: un unico invasor ejecutaba los
-        # 32 movimientos del tick y los otros 31 ninguno, con el conteo de
-        # permisos aun cuadrando. Con un semaforo privado por hilo, cada uno
-        # solo puede tomar SU permiso, asi que el encuentro 1:1 es exacto.
+        # 31, que se quedan esperando. Con un semaforo privado por hilo, cada
+        # uno solo puede tomar SU permiso, asi que el encuentro 1:1 es exacto.
         #
         # `listo_sem` si es compartido, y a proposito: al principal solo le
         # interesa un total de 32 avisos, no quien los dara.
@@ -221,7 +215,7 @@ class Estado:
         # ---------------- Semaforo de recursos: balas del jugador ---------
         # Cupo de 3 proyectiles. Se reserva con `acquire(blocking=False)`
         # ANTES de crear el hilo de la bala: si no hay cupo, la pulsacion se
-        # descarta. Asi ningun hilo queda esperando turno (defecto D3).
+        # descarta. Asi ningun hilo queda esperando turno.
         self.balas_sem = threading.Semaphore(C.MAX_BALAS)
 
         # ---------------- Semaforos de recursos: bombas enemigas -----------
